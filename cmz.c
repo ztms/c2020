@@ -122,7 +122,7 @@ Token* tokenize( char* p )
     return head.next;
 }
 
-int main(int argc, char** argv)
+int main( int argc, char** argv )
 {
     if( argc != 2 ) error("引数の個数が正しくありません");
 
@@ -137,7 +137,7 @@ int main(int argc, char** argv)
 
     while( !token_eof() )
     {
-        if (token_consume('+'))
+        if( token_consume('+') )
         {
             printf("  add rax, %d\n", token_expect_number());
             continue;
