@@ -3,7 +3,7 @@
 ## 環境
 - Windows 10 Home 2004 (Insider Preview build 19041.208)
 - Linux 用 Windows サブシステム (WSL2)
-- Ubuntu 20.04 LTS (GNU/Linux 4.4.0-19041-Microsoft x86_64)
+- Ubuntu 18.04 LTS
 
 ## 追加パッケージ
 ```
