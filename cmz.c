@@ -6,16 +6,18 @@
 #include <string.h>
 
 // トークンの種類
-typedef enum {
+typedef enum TokenKind TokenKind;
+enum TokenKind
+{
     TK_RESERVED, // 記号
     TK_NUMBER,   // 整数トークン
     TK_EOF,      // 入力の終わりを表すトークン
-} TokenKind;
-
-typedef struct Token Token;
+};
 
 // トークン型
-struct Token {
+typedef struct Token Token;
+struct Token
+{
     TokenKind kind; // トークンの型
     Token* next;    // 次の入力トークン
     int value;      // kindがTK_NUMBERの場合、その数値
