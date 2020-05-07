@@ -17,19 +17,19 @@ typedef struct Token Token;
 // トークン型
 struct Token {
     TokenKind kind; // トークンの型
-    Token *next;    // 次の入力トークン
+    Token* next;    // 次の入力トークン
     int value;      // kindがTK_NUMBERの場合、その数値
-    char *str;      // トークン文字列
+    char* str;      // トークン文字列
 };
 
 // 入力文字列
-char *user_input;
+char* user_input;
 
 // 現在着目しているトークン
-Token *token;
+Token* token;
 
 // エラーを報告するための関数
-void error( char *fmt, ... )
+void error( char* fmt, ... )
 {
     va_list ap;
     va_start(ap, fmt);
@@ -39,7 +39,7 @@ void error( char *fmt, ... )
 }
 
 // エラー箇所を指して報告する関数
-void error_at( char *at, char *fmt, ... )
+void error_at( char* at, char* fmt, ... )
 {
     va_list ap;
     int N = at - user_input;
@@ -83,9 +83,9 @@ bool token_eof()
 }
 
 // 新しいトークンを生成
-Token *new_token( TokenKind kind, Token *current, char *str )
+Token* new_token( TokenKind kind, Token* current, char* str )
 {
-    Token *token = calloc(1, sizeof(Token));
+    Token* token = calloc(1, sizeof(Token));
     token->kind = kind;
     token->str = str;
     current->next = token;
@@ -93,11 +93,11 @@ Token *new_token( TokenKind kind, Token *current, char *str )
 }
 
 // 文字列pをトークナイズして返す
-Token *tokenize( char* p )
+Token* tokenize( char* p )
 {
     Token head;
     head.next = NULL;
-    Token *current = &head;
+    Token* current = &head;
     while( *p )
     {
         if( isspace(*p) )
@@ -122,7 +122,7 @@ Token *tokenize( char* p )
     return head.next;
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     if( argc != 2 ) error("引数の個数が正しくありません");
 
