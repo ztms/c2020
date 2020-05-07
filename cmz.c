@@ -22,6 +22,9 @@ struct Token {
     char *str;      // トークン文字列
 };
 
+// 入力文字列
+char *user_input;
+
 // 現在着目しているトークン
 Token *token;
 
@@ -30,6 +33,20 @@ void error( char *fmt, ... )
 {
     va_list ap;
     va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    exit(1);
+}
+
+// エラー箇所を指して報告する関数
+void error_at( char *at, char *fmt, ... )
+{
+    va_list ap;
+    int N = at - user_input;
+    va_start(ap, fmt);
+    fprintf(stderr, "%s\n", user_input);
+    fprintf(stderr, "%*s", N, ""); // N個の空白文字を出力
+    fprintf(stderr, "^ ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     exit(1);
@@ -46,19 +63,20 @@ bool token_consume( char op )
 // 現在のトークンが期待してる記号の時はトークンを１つ進め、それ以外はエラー
 bool token_expect( char op )
 {
-    if( token->kind != TK_RESERVED || token->str[0] != op ) error("'%c'ではありません",op);
+    if( token->kind != TK_RESERVED || token->str[0] != op ) error_at(token->str, "'%c'ではありません",op);
     token = token->next;
 }
 
 // 現在のトークンが数値の場合トークンを１つ進めてその数値を返し、それ以外はエラー
 int token_expect_number()
 {
-    if( token->kind != TK_NUMBER ) error("数ではありません");
+    if( token->kind != TK_NUMBER ) error_at(token->str, "数ではありません");
     int value = token->value;
     token = token->next;
     return value;
 }
 
+// 現在のトークンが終端かどうか
 bool token_eof()
 {
     return token->kind == TK_EOF;
@@ -108,6 +126,7 @@ int main(int argc, char **argv)
 {
     if( argc != 2 ) error("引数の個数が正しくありません");
 
+    user_input = argv[1];
     token = tokenize(argv[1]);
 
     printf(".intel_syntax noprefix\n");
