@@ -179,13 +179,16 @@ Node* new_node_num( int value )
 // 抽象構文木生成
 // -----------------------------------------------
 // expr    = mul ("+" mul | "-" mul)*
-// mul     = primary ("*" primary | "/" primary)*
+// mul     = unary ("*" unary | "/" unary)*
+// unary   = ("+" | "-")? primary
 // primary = num | "(" expr ")"
 // -----------------------------------------------
 Node* expr();
 Node* mul();
+Node* unary();
 Node* primary();
 
+// expr = mul ("+" mul | "-" mul)*
 Node* expr()
 {
     Node *node = mul();
@@ -206,26 +209,39 @@ Node* expr()
     }
 }
 
+// mul = unary ("*" unary | "/" unary)*
 Node* mul()
 {
-    Node *node = primary();
+    Node *node = unary();
 
     for( ;; )
     {
         if( token_consume('*') )
         {
-            node = new_node(NODE_MUL, node, primary());
+            node = new_node(NODE_MUL, node, unary());
             continue;
         }
         if( token_consume('/') )
         {
-            node = new_node(NODE_DIV, node, primary());
+            node = new_node(NODE_DIV, node, unary());
             continue;
         }
         return node;
     }
 }
 
+// unary = ("+" | "-")? primary
+Node* unary()
+{
+    // +x は x に置き換え
+    if( token_consume('+') ) return primary();
+    // -x は 0-x に置き換え
+    if( token_consume('-') ) return new_node(NODE_SUB, new_node_num(0), primary());
+    // x
+    return primary();
+}
+
+// primary = num | "(" expr ")"
 Node* primary()
 {
     // ( expr )
