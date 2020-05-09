@@ -1,7 +1,7 @@
 #!/bin/bash
 assert() {
-  expected="$1"
-  input="$2"
+  input="$1"
+  expected="$2"
 
   ./cmz "$input" > tmp.s
   cc -o tmp tmp.s
@@ -18,7 +18,11 @@ assert() {
 
 assert 0 0
 assert 42 42
-assert 16 "5+20-9"
-assert 41 " 12 + 34 - 5 "
+assert "5+20-9" 16
+assert " 12 + 34 - 5 " 41
+assert "5+6*7" 47
+assert "5 * (9 - 6)" 15
+assert "( 3 + 5 ) / 2" 4
+assert "10* 10 -10  +  (10 +10 ) /10" 92
 
 echo OK
