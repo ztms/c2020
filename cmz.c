@@ -26,19 +26,20 @@ void error( char* fmt, ... )
 typedef enum TokenKind TokenKind;
 enum TokenKind
 {
-    TOKEN_RESERVED, // 記号
-    TOKEN_NUMBER,   // 整数トークン
-    TOKEN_EOF,      // 入力の終わりを表すトークン
+    TOKEN_RESERVED, // 予約語
+    TOKEN_NUMBER,   // 整数
+    TOKEN_EOF,      // 終端
 };
 
 // トークン型
 typedef struct Token Token;
 struct Token
 {
-    TokenKind kind; // トークンの型
-    Token* next;    // 次の入力トークン
-    int value;      // kindがTOKEN_NUMBERの場合、その数値
+    TokenKind kind; // 種類
+    Token* next;    // 次のトークン
     char* str;      // トークン文字列
+    int len;        // トークン文字列長
+    int value;      // 整数トークンの場合、その数値
 };
 
 // 現在着目しているトークン
@@ -58,19 +59,21 @@ void token_error( char* at, char* fmt, ... )
     exit(1);
 }
 
-// 現在のトークンが期待してる記号の時はトークンを１つ進め、それ以外はエラー
-bool token_consume( char op )
+// 現在のトークンが期待してる記号の時はトークンを１つ進め、進んだかどうかを返却
+bool token_consume( char* op )
 {
-    if( token->kind != TOKEN_RESERVED || token->str[0] != op ) return false;
+    if( token->kind != TOKEN_RESERVED ) return false;
+    if( token->len != strlen(op) ) return false;
+    if( memcmp(op, token->str, token->len) ) return false;
     token = token->next;
     return true;
 }
 
-// 現在のトークンが期待してる記号の時はトークンを１つ進め、それ以外はエラー
-bool token_expect( char op )
+// 現在のトークンが期待してる記号の時はトークンを１つ進め、それ以外はエラー終了
+bool token_expect( char* op )
 {
-    if( token->kind != TOKEN_RESERVED || token->str[0] != op ) token_error(token->str, "'%c'ではありません", op);
-    token = token->next;
+    if( !token_consume(op) ) token_error(token->str, "'%c'ではありません", op);
+    return true;
 }
 
 // 現在のトークンが数値の場合トークンを１つ進めてその数値を返し、それ以外はエラー
@@ -89,13 +92,27 @@ bool token_eof()
 }
 
 // 新しいトークンを生成
-Token* new_token( TokenKind kind, Token* current, char* str )
+Token* new_token( TokenKind kind, Token* current, char* str, int len )
 {
     Token* token = calloc(1, sizeof(Token));
     token->kind = kind;
     token->str = str;
+    token->len = len;
     current->next = token;
     return token;
+}
+
+// 文字列の先頭が予約語トークンだった場合、その文字列長を返し、それ以外は0を返す
+int find_token_reserved( char* p )
+{
+    // 2文字
+    if( memcmp("==", p, 2)==0 ) return 2;
+    if( memcmp("!=", p, 2)==0 ) return 2;
+    if( memcmp("<=", p, 2)==0 ) return 2;
+    if( memcmp(">=", p, 2)==0 ) return 2;
+    // 1文字
+    if( strchr("+-*/()<>", *p) ) return 1;
+    return 0;
 }
 
 // 文字列をトークナイズして返す
@@ -113,21 +130,26 @@ Token* tokenize( char* p )
             p++;
             continue;
         }
-        if( strchr("+-*/()", *p) )
+        int len = find_token_reserved(p);
+        if( len )
         {
-            current = new_token(TOKEN_RESERVED, current, p++);
+            current = new_token(TOKEN_RESERVED, current, p, len);
+            p += len;
             continue;
         }
         if( isdigit(*p) )
         {
-            current = new_token(TOKEN_NUMBER, current, p);
-            current->value = strtol(p, &p, 10);
+            char* q = p;
+            int value = strtol(p, &p, 10);
+            int len = p - q;
+            current = new_token(TOKEN_NUMBER, current, p, len);
+            current->value = value;
             continue;
         }
         token_error(p, "トークナイズできません");
     }
 
-    new_token(TOKEN_EOF, current, p);
+    new_token(TOKEN_EOF, current, p, 0);
 
     return head.next;
 }
@@ -145,6 +167,10 @@ enum NodeKind
     NODE_SUB, // -
     NODE_MUL, // *
     NODE_DIV, // /
+    NODE_EQ,  // ==
+    NODE_NE,  // !=
+    NODE_LT,  // <
+    NODE_LE,  // <=
 };
 
 // 抽象構文木ノード型
@@ -177,30 +203,94 @@ Node* new_node_num( int value )
 }
 
 // 抽象構文木生成
-// -----------------------------------------------
-// expr    = mul ("+" mul | "-" mul)*
-// mul     = unary ("*" unary | "/" unary)*
-// unary   = ("+" | "-")? primary
-// primary = num | "(" expr ")"
-// -----------------------------------------------
-Node* expr();
+// ------------------------------------------------------------
+// expression = equal
+// equal      = less ("==" less | "!=" less)*
+// less       = add ("<" add | "<=" add | ">" add | ">=" add)*
+// add        = mul ("+" mul | "-" mul)*
+// mul        = unary ("*" unary | "/" unary)*
+// unary      = ("+" | "-")? primary
+// primary    = num | "(" expression ")"
+// ------------------------------------------------------------
+Node* expression();
+Node* equal();
+Node* less();
+Node* add();
 Node* mul();
 Node* unary();
 Node* primary();
 
-// expr = mul ("+" mul | "-" mul)*
-Node* expr()
+// expression = equal
+Node* expression()
+{
+    return equal();
+}
+
+// equal = less ("==" less | "!=" less)*
+Node* equal()
+{
+    Node *node = less();
+
+    for( ;; )
+    {
+        if( token_consume("==") )
+        {
+            node = new_node(NODE_EQ, node, less());
+            continue;
+        }
+        if( token_consume("!=") )
+        {
+            node = new_node(NODE_NE, node, less());
+            continue;
+        }
+        return node;
+    }
+}
+
+// less = add ("<" add | "<=" add | ">" add | ">=" add)*
+Node* less()
+{
+    Node *node = add();
+
+    for( ;; )
+    {
+        if( token_consume("<") )
+        {
+            node = new_node(NODE_LT, node, add());
+            continue;
+        }
+        if( token_consume("<=") )
+        {
+            node = new_node(NODE_LE, node, add());
+            continue;
+        }
+        if( token_consume(">") )
+        {
+            node = new_node(NODE_LT, add(), node);
+            continue;
+        }
+        if( token_consume(">=") )
+        {
+            node = new_node(NODE_LE, add(), node);
+            continue;
+        }
+        return node;
+    }
+}
+
+// add = mul ("+" mul | "-" mul)*
+Node* add()
 {
     Node *node = mul();
 
     for( ;; )
     {
-        if( token_consume('+') )
+        if( token_consume("+") )
         {
             node = new_node(NODE_ADD, node, mul());
             continue;
         }
-        if( token_consume('-') )
+        if( token_consume("-") )
         {
             node = new_node(NODE_SUB, node, mul());
             continue;
@@ -216,12 +306,12 @@ Node* mul()
 
     for( ;; )
     {
-        if( token_consume('*') )
+        if( token_consume("*") )
         {
             node = new_node(NODE_MUL, node, unary());
             continue;
         }
-        if( token_consume('/') )
+        if( token_consume("/") )
         {
             node = new_node(NODE_DIV, node, unary());
             continue;
@@ -231,12 +321,23 @@ Node* mul()
 }
 
 // unary = ("+" | "-")? primary
+//
+// TODO:
+// ここの実装がchibicc/course2020では変わったようで、例えば "- -10" というような
+// +- 演算子1文字だけで終わるトークンも許容するように進化したもよう。
+// 生成規則ではこの unary が違う。
+//   unari = ("+" | "-")? unary
+//         | primary
+// ひとまず教科書テキストどおりで "- -10" は文法エラーになる。
+// しかし実際GCCで "- -10" はコンパイルエラーにならないようだ・・なるほど・・
+//   int a = - -10;
+//
 Node* unary()
 {
     // +x は x に置き換え
-    if( token_consume('+') ) return primary();
+    if( token_consume("+") ) return primary();
     // -x は 0-x に置き換え
-    if( token_consume('-') ) return new_node(NODE_SUB, new_node_num(0), primary());
+    if( token_consume("-") ) return new_node(NODE_SUB, new_node_num(0), primary());
     // x
     return primary();
 }
@@ -245,10 +346,10 @@ Node* unary()
 Node* primary()
 {
     // ( expr )
-    if( token_consume('(') )
+    if( token_consume("(") )
     {
-        Node* node = expr();
-        token_expect(')');
+        Node* node = expression();
+        token_expect(")");
         return node;
     }
     // num
@@ -285,6 +386,26 @@ void generate( Node* node )
             printf("  cqo\n");
             printf("  idiv rdi\n");
             break;
+        case NODE_EQ:
+            printf("  cmp rax, rdi\n");
+            printf("  sete al\n");
+            printf("  movzb rax, al\n");
+            break;
+        case NODE_NE:
+            printf("  cmp rax, rdi\n");
+            printf("  setne al\n");
+            printf("  movzb rax, al\n");
+            break;
+        case NODE_LT:
+            printf("  cmp rax, rdi\n");
+            printf("  setl al\n");
+            printf("  movzb rax, al\n");
+            break;
+        case NODE_LE:
+            printf("  cmp rax, rdi\n");
+            printf("  setle al\n");
+            printf("  movzb rax, al\n");
+            break;
     }
     printf("  push rax\n");
 }
@@ -299,7 +420,7 @@ int main( int argc, char** argv )
     token = tokenize(user_input);
 
     // 抽象構文木生成
-    Node* node = expr();
+    Node* node = expression();
 
     printf(".intel_syntax noprefix\n");
     printf(".global main\n");
