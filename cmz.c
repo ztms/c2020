@@ -209,7 +209,7 @@ Node* new_node_num( int value )
 // less       = add ("<" add | "<=" add | ">" add | ">=" add)*
 // add        = mul ("+" mul | "-" mul)*
 // mul        = unary ("*" unary | "/" unary)*
-// unary      = ("+" | "-")? primary
+// unary      = ("+" | "-")? unary | primary
 // primary    = num | "(" expression ")"
 // ------------------------------------------------------------
 Node* expression();
@@ -320,24 +320,13 @@ Node* mul()
     }
 }
 
-// unary = ("+" | "-")? primary
-//
-// TODO:
-// ここの実装がchibicc/course2020では変わったようで、例えば "- -10" というような
-// +- 演算子1文字だけで終わるトークンも許容するように進化したもよう。
-// 生成規則ではこの unary が違う。
-//   unari = ("+" | "-")? unary
-//         | primary
-// ひとまず教科書テキストどおりで "- -10" は文法エラーになる。
-// しかし実際GCCで "- -10" はコンパイルエラーにならないようだ・・なるほど・・
-//   int a = - -10;
-//
+// unary = ("+" | "-")? unary | primary
 Node* unary()
 {
     // +x は x に置き換え
-    if( token_consume("+") ) return primary();
+    if( token_consume("+") ) return unary();
     // -x は 0-x に置き換え
-    if( token_consume("-") ) return new_node(NODE_SUB, new_node_num(0), primary());
+    if( token_consume("-") ) return new_node(NODE_SUB, new_node_num(0), unary());
     // x
     return primary();
 }
