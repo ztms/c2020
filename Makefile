@@ -1,6 +1,11 @@
 CFLAGS=-std=c11 -g -static
+SRCS=$(wildcard *.c)
+OBJS=$(SRCS:.c=.o)
 
-cmz: cmz.c
+cmz: $(OBJS)
+	$(CC) -o cmz $(OBJS) $(LDFLAGS)
+
+$(OBJS): cmz.h
 
 test: cmz
 	./test.sh
