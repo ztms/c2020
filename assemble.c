@@ -1,11 +1,11 @@
-#include <stdio.h>
 #include "cmz.h"
 
 // ---------------------------------------------------
-// 抽象構文木を再帰下降でコード生成
+// 抽象構文木を再帰下降でアセンブルコード生成
 // ---------------------------------------------------
 
-void codegen_lval( Node* node )
+// 代入左辺の特殊コード
+void assemble_lvar( Node* node )
 {
     if( node->kind != NODE_LVAR ) error("代入の左辺が変数ではありません");
 
@@ -14,7 +14,8 @@ void codegen_lval( Node* node )
     printf("  push rax\n");
 }
 
-void codegen( Node* node )
+// 抽象構文木ひとつコード生成
+void assemble_tree( Node* node )
 {
     switch( node->kind )
     {
@@ -22,14 +23,14 @@ void codegen( Node* node )
             printf("  push %d\n", node->value);
             return;
         case NODE_LVAR:
-            codegen_lval(node);
+            assemble_lvar(node);
             printf("  pop rax\n");
             printf("  mov rax, [rax]\n");
             printf("  push rax\n");
             return;
         case NODE_ASSIGN:
-            codegen_lval(node->lhs);
-            codegen(node->rhs);
+            assemble_lvar(node->lhs);
+            assemble_tree(node->rhs);
             printf("  pop rdi\n");
             printf("  pop rax\n");
             printf("  mov [rax], rdi\n");
@@ -37,8 +38,8 @@ void codegen( Node* node )
             return;
     }
 
-    codegen(node->lhs);
-    codegen(node->rhs);
+    assemble_tree(node->lhs);
+    assemble_tree(node->rhs);
 
     printf("  pop rdi\n");
     printf("  pop rax\n");
@@ -82,3 +83,31 @@ void codegen( Node* node )
     printf("  push rax\n");
 }
 
+// 全体コード生成
+void assemble( Expression* expression )
+{
+    printf(".intel_syntax noprefix\n");
+    printf(".global main\n");
+    printf("main:\n");
+
+    // プロローグ
+    // 変数26個分の領域を確保
+    printf("  push rbp\n");
+    printf("  mov rbp, rsp\n");
+    printf("  sub rsp, 208\n");
+
+    // コード生成
+    for( Expression* ex=expression; ex; ex=ex->next )
+    {
+        assemble_tree(ex->node);
+        // 式の評価結果としてスタックに１つ値が残っている
+        // スタックが溢れないようにポップしておく
+        printf("  pop rax\n");
+    }
+
+    // エピローグ
+    // 最後の式の結果がRAXに残っているのでそれが返り値になる
+    printf("  mov rsp, rbp\n");
+    printf("  pop rbp\n");
+    printf("  ret\n");
+}

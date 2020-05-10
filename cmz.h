@@ -1,3 +1,9 @@
+#include <ctype.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // 入力文字列
 extern char* user_input;
@@ -30,11 +36,21 @@ struct Token
     int value;      // 整数トークンの場合、その数値
 };
 
-// 現在着目しているトークン
+// 現在のトークン
 extern Token* token;
 
 // 文字列をトークナイズして返す
 Token* tokenize( char* p );
+// 現在のトークンが終端かどうか
+bool token_eof();
+// 現在のトークンが期待してる記号の時はトークンを１つ進め、進んだかどうかを返却
+bool token_consume( char* op );
+// 現在のトークンが期待してる記号の時はトークンを１つ進め、それ以外はエラー終了
+bool token_expect( char* op );
+// 現在のトークンが数値の場合トークンを１つ進めてその数値を返し、それ以外はエラー
+int token_expect_number();
+// 現在のトークンが識別子ならトークンを１つ進めてその文字列を返し、それ以外はエラー
+char* token_consume_ident();
 
 // ---------------------------------------------------------
 // 抽象構文木
@@ -68,40 +84,21 @@ struct Node
     int offset;    // 種類がローカル変数の場合に使う
 };
 
-typedef struct Statement Statement;
-struct Statement
+// 式リスト
+typedef struct Expression Expression;
+struct Expression
 {
-    Statement* next;
+    Expression* next;
     Node* node;
 };
 
 // 抽象構文木生成
-// ------------------------------------------------------------
-// program    = statement*
-// statement  = expression ";"
-// expression = assign
-// assign     = equal ("=" assign)?
-// equal      = less ("==" less | "!=" less)*
-// less       = add ("<" add | "<=" add | ">" add | ">=" add)*
-// add        = mul ("+" mul | "-" mul)*
-// mul        = unary ("*" unary | "/" unary)*
-// unary      = ("+" | "-")? unary | primary
-// primary    = num | ident | "(" expression ")"
-// ------------------------------------------------------------
-Statement* program();
-Node* statement();
-Node* expression();
-Node* assign();
-Node* equal();
-Node* less();
-Node* add();
-Node* mul();
-Node* unary();
-Node* primary();
+Expression* syntax();
 
 // ---------------------------------------------------------
 // 再帰下降構文解析
 // ---------------------------------------------------------
 
-// 抽象構文木を再帰下降でコード生成
-void codegen( Node* node );
+// 全体コード生成
+void assemble( Expression* expression );
+
