@@ -1,17 +1,44 @@
 #include <stdio.h>
 #include "cmz.h"
 
+// ---------------------------------------------------
 // 抽象構文木を再帰下降でコード生成
-void generate( Node* node )
+// ---------------------------------------------------
+
+void codegen_lval( Node* node )
 {
-    if( node->kind == NODE_NUM )
+    if( node->kind != NODE_LVAR ) error("代入の左辺が変数ではありません");
+
+    printf("  mov rax, rbp\n");
+    printf("  sub rax, %d\n", node->offset);
+    printf("  push rax\n");
+}
+
+void codegen( Node* node )
+{
+    switch( node->kind )
     {
-        printf("  push %d\n", node->value);
-        return;
+        case NODE_NUM:
+            printf("  push %d\n", node->value);
+            return;
+        case NODE_LVAR:
+            codegen_lval(node);
+            printf("  pop rax\n");
+            printf("  mov rax, [rax]\n");
+            printf("  push rax\n");
+            return;
+        case NODE_ASSIGN:
+            codegen_lval(node->lhs);
+            codegen(node->rhs);
+            printf("  pop rdi\n");
+            printf("  pop rax\n");
+            printf("  mov [rax], rdi\n");
+            printf("  push rdi\n");
+            return;
     }
 
-    generate(node->lhs);
-    generate(node->rhs);
+    codegen(node->lhs);
+    codegen(node->rhs);
 
     printf("  pop rdi\n");
     printf("  pop rax\n");

@@ -47,7 +47,7 @@ int find_token_reserved( char* p )
     if( memcmp("<=", p, 2)==0 ) return 2;
     if( memcmp(">=", p, 2)==0 ) return 2;
     // 1文字
-    if( strchr("+-*/()<>", *p) ) return 1;
+    if( ispunct(*p) ) return 1;
     return 0;
 }
 
@@ -66,6 +66,7 @@ Token* tokenize( char* p )
             p++;
             continue;
         }
+        // 予約語
         int len = find_token_reserved(p);
         if( len )
         {
@@ -73,6 +74,14 @@ Token* tokenize( char* p )
             p += len;
             continue;
         }
+        // 識別子
+        if( 'a' <= *p && *p <= 'z' )
+        {
+            current = new_token(TOKEN_IDENT, current, p, 1);
+            p++;
+            continue;
+        }
+        // 整数
         if( isdigit(*p) )
         {
             char* q = p;
@@ -90,6 +99,12 @@ Token* tokenize( char* p )
     return head.next;
 }
 
+// 現在のトークンが終端かどうか
+bool token_eof()
+{
+    return token->kind == TOKEN_EOF;
+}
+
 // 現在のトークンが期待してる記号の時はトークンを１つ進め、進んだかどうかを返却
 bool token_consume( char* op )
 {
@@ -103,7 +118,7 @@ bool token_consume( char* op )
 // 現在のトークンが期待してる記号の時はトークンを１つ進め、それ以外はエラー終了
 bool token_expect( char* op )
 {
-    if( !token_consume(op) ) token_error(token->str, "'%c'ではありません", op);
+    if( !token_consume(op) ) token_error(token->str, "'%s'ではありません", op);
     return true;
 }
 
@@ -116,17 +131,19 @@ int token_expect_number()
     return value;
 }
 
-// 現在のトークンが終端かどうか
-bool token_eof()
+char* token_consume_ident()
 {
-    return token->kind == TOKEN_EOF;
+    if( token->kind != TOKEN_IDENT ) return NULL;
+    char* ident = token->str;
+    token = token->next;
+    return ident;
 }
 
 // ---------------------------------------------------------
-// 再帰下降構文解析
+// 抽象構文木
 // ---------------------------------------------------------
 
-// 抽象構文木ノード生成
+// 木ノード生成
 Node* new_node( NodeKind kind, Node* lhs, Node* rhs )
 {
     Node* node = calloc(1, sizeof(Node));
@@ -136,7 +153,7 @@ Node* new_node( NodeKind kind, Node* lhs, Node* rhs )
     return node;
 }
 
-// 抽象構文木ノード(数値)生成
+// 木ノード(数値)生成
 Node* new_node_num( int value )
 {
     Node* node = calloc(1, sizeof(Node));
@@ -145,28 +162,57 @@ Node* new_node_num( int value )
     return node;
 }
 
-// 抽象構文木生成
-// ------------------------------------------------------------
-// expression = equal
-// equal      = less ("==" less | "!=" less)*
-// less       = add ("<" add | "<=" add | ">" add | ">=" add)*
-// add        = mul ("+" mul | "-" mul)*
-// mul        = unary ("*" unary | "/" unary)*
-// unary      = ("+" | "-")? unary | primary
-// primary    = num | "(" expression ")"
-// ------------------------------------------------------------
-Node* expression();
-Node* equal();
-Node* less();
-Node* add();
-Node* mul();
-Node* unary();
-Node* primary();
+// 木ノード(ローカル変数)生成
+Node* new_node_lvar( char* ident )
+{
+    Node* node = calloc(1, sizeof(Node));
+    node->kind = NODE_LVAR;
+    node->offset = (ident[0] - 'a' + 1) * 8;
+    return node;
+}
+
+// program = statement*
+Statement* program()
+{
+    Statement head;
+    Statement* current = &head;
+
+    head.next = NULL;
+
+    while( !token_eof() )
+    {
+        Statement* st = calloc(1, sizeof(Statement));
+        st->node = statement();
+        current->next = st;
+        current = st;
+    }
+    return head.next;
+}
+
+// statement = expression ";"
+Node* statement()
+{
+    Node *node = expression();
+    token_expect(";");
+    return node;
+}
 
 // expression = equal
 Node* expression()
 {
-    return equal();
+    return assign();
+}
+
+// assign = equal ("=" assign)?
+Node* assign()
+{
+    Node *node = equal();
+
+    if( token_consume("=") )
+    {
+        node = new_node(NODE_ASSIGN, node, assign());
+    }
+    return node;
 }
 
 // equal = less ("==" less | "!=" less)*
@@ -274,7 +320,7 @@ Node* unary()
     return primary();
 }
 
-// primary = num | "(" expr ")"
+// primary = num | ident | "(" expression ")"
 Node* primary()
 {
     // ( expr )
@@ -283,6 +329,12 @@ Node* primary()
         Node* node = expression();
         token_expect(")");
         return node;
+    }
+    // ident
+    char* ident = token_consume_ident();
+    if( ident )
+    {
+        return new_node_lvar(ident);
     }
     // num
     return new_node_num(token_expect_number());

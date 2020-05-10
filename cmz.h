@@ -2,13 +2,21 @@
 // 入力文字列
 extern char* user_input;
 
+// エラー終了
+void error( char* fmt, ... );
+
+// ---------------------------------------------------------
+// トークナイズ
+// ---------------------------------------------------------
+
 // トークンの種類
 typedef enum TokenKind TokenKind;
 enum TokenKind
 {
+    TOKEN_EOF,      // 終端
     TOKEN_RESERVED, // 予約語
     TOKEN_NUMBER,   // 整数
-    TOKEN_EOF,      // 終端
+    TOKEN_IDENT,    // 識別子
 };
 
 // トークン型
@@ -28,42 +36,62 @@ extern Token* token;
 // 文字列をトークナイズして返す
 Token* tokenize( char* p );
 
-// 抽象構文木ノード種類
+// ---------------------------------------------------------
+// 抽象構文木
+// ---------------------------------------------------------
+
+// 木ノード種類
 typedef enum NodeKind NodeKind;
 enum NodeKind
 {
-    NODE_NUM, // 整数
-    NODE_ADD, // +
-    NODE_SUB, // -
-    NODE_MUL, // *
-    NODE_DIV, // /
-    NODE_EQ,  // ==
-    NODE_NE,  // !=
-    NODE_LT,  // <
-    NODE_LE,  // <=
+    NODE_NUM,    // 整数
+    NODE_ADD,    // +
+    NODE_SUB,    // -
+    NODE_MUL,    // *
+    NODE_DIV,    // /
+    NODE_EQ,     // ==
+    NODE_NE,     // !=
+    NODE_LT,     // <
+    NODE_LE,     // <=
+    NODE_ASSIGN, // = 代入
+    NODE_LVAR,   // ローカル変数
 };
 
-// 抽象構文木ノード型
+// 木ノード型
 typedef struct Node Node;
 struct Node
 {
     NodeKind kind; // 種類
     Node* lhs;     // 左辺
     Node* rhs;     // 右辺
-    int value;     // kindがNODE_NUMの場合の数値
+    int value;     // 種類が整数の場合の数値
+    int offset;    // 種類がローカル変数の場合に使う
+};
+
+typedef struct Statement Statement;
+struct Statement
+{
+    Statement* next;
+    Node* node;
 };
 
 // 抽象構文木生成
 // ------------------------------------------------------------
-// expression = equal
+// program    = statement*
+// statement  = expression ";"
+// expression = assign
+// assign     = equal ("=" assign)?
 // equal      = less ("==" less | "!=" less)*
 // less       = add ("<" add | "<=" add | ">" add | ">=" add)*
 // add        = mul ("+" mul | "-" mul)*
 // mul        = unary ("*" unary | "/" unary)*
 // unary      = ("+" | "-")? unary | primary
-// primary    = num | "(" expression ")"
+// primary    = num | ident | "(" expression ")"
 // ------------------------------------------------------------
+Statement* program();
+Node* statement();
 Node* expression();
+Node* assign();
 Node* equal();
 Node* less();
 Node* add();
@@ -71,5 +99,9 @@ Node* mul();
 Node* unary();
 Node* primary();
 
+// ---------------------------------------------------------
+// 再帰下降構文解析
+// ---------------------------------------------------------
+
 // 抽象構文木を再帰下降でコード生成
-void generate( Node* node );
+void codegen( Node* node );
